@@ -8,6 +8,13 @@
 
 `$ react-native link react-native-usage-stats`
 
+### Add AndroidManifest permission
+```
+<uses-permission
+    android:name="android.permission.PACKAGE_USAGE_STATS"
+    tools:ignore="ProtectedPermissions" />
+```
+
 ## Usage
 ```javascript
 import UsageStats from 'react-native-usage-stats';
