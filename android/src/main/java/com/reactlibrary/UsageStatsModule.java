@@ -61,14 +61,14 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void checkForPermission(Callback callback) {
+    public void checkForPermission(Promise promise) {
         AppOpsManager appOps = (AppOpsManager) reactContext.getSystemService(Context.APP_OPS_SERVICE);
         int mode = appOps.checkOpNoThrow(OPSTR_GET_USAGE_STATS, Process.myUid(), reactContext.getPackageName());
-        callback.invoke(mode == MODE_ALLOWED);
+        promise.resolve(mode == MODE_ALLOWED);
     }
 
     @ReactMethod
-    public void queryUsageStats(int interval, double startTime, double endTime, Callback callback) {
+    public void queryUsageStats(int interval, double startTime, double endTime, Promise promise) {
         WritableMap result = new WritableNativeMap();
         UsageStatsManager usageStatsManager = (UsageStatsManager)reactContext.getSystemService(Context.USAGE_STATS_SERVICE);
         List<UsageStats> queryUsageStats = usageStatsManager.queryUsageStats(interval, (long) startTime, (long) endTime);
@@ -83,6 +83,6 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
             usageStats.putInt("describeContents", us.describeContents());
             result.putMap(us.getPackageName(), usageStats);
         }
-        callback.invoke(result);
+        promise.resolve(result);
     }
 }
