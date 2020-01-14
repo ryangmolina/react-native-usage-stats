@@ -1,10 +1,13 @@
 package com.reactlibrary;
 
+import android.app.AppOpsManager;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.util.Log;
+import android.os.Process;
 
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -20,6 +23,9 @@ import com.facebook.react.common.MapBuilder;
 import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Map;
+
+import static android.app.AppOpsManager.MODE_ALLOWED;
+import static android.app.AppOpsManager.OPSTR_GET_USAGE_STATS;
 
 public class UsageStatsModule extends ReactContextBaseJavaModule {
 
@@ -47,14 +53,22 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void showUsageAccessSettings() {
+    public void showUsageAccessSettings(String packageName) {
         Intent intent = new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS);
+        intent.setData(Uri.fromParts("package", packageName, null));
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         reactContext.startActivity(intent);
     }
 
     @ReactMethod
-    public void queryUsageStats(int interval, double startTime, double endTime, Promise promise) {
+    public void checkForPermission(Callback callback) {
+        AppOpsManager appOps = (AppOpsManager) reactContext.getSystemService(Context.APP_OPS_SERVICE);
+        int mode = appOps.checkOpNoThrow(OPSTR_GET_USAGE_STATS, Process.myUid(), reactContext.getPackageName());
+        callback.invoke(mode == MODE_ALLOWED);
+    }
+
+    @ReactMethod
+    public void queryUsageStats(int interval, double startTime, double endTime, Callback callback) {
         WritableMap result = new WritableNativeMap();
         UsageStatsManager usageStatsManager = (UsageStatsManager)reactContext.getSystemService(Context.USAGE_STATS_SERVICE);
         List<UsageStats> queryUsageStats = usageStatsManager.queryUsageStats(interval, (long) startTime, (long) endTime);
@@ -69,6 +83,6 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
             usageStats.putInt("describeContents", us.describeContents());
             result.putMap(us.getPackageName(), usageStats);
         }
-        promise.resolve(result);
+        callback.invoke(result);
     }
 }
