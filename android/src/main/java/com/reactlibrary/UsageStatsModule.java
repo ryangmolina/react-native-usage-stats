@@ -5,6 +5,8 @@ import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.util.Log;
 import android.os.Process;
@@ -52,10 +54,24 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
         return constants;
     }
 
+    private boolean packageExists(String packageName) {
+        PackageManager packageManager = reactContext.getPackageManager();
+        ApplicationInfo info = null;
+        try {
+            info = packageManager.getApplicationInfo(packageName, 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
     @ReactMethod
     public void showUsageAccessSettings(String packageName) {
         Intent intent = new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS);
-        intent.setData(Uri.fromParts("package", packageName, null));
+        if (packageExists(packageName)) {
+            intent.setData(Uri.fromParts("package", packageName, null));
+        }
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         reactContext.startActivity(intent);
     }
