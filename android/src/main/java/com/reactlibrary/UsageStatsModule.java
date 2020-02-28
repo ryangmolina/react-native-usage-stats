@@ -36,6 +36,7 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
     public UsageStatsModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
+        networkStatsManager = (NetworkStatsManager) reactContext.getSystemService(Context.NETWORK_STATS_SERVICE);
     }
 
     @Override
@@ -51,6 +52,11 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
         constants.put("INTERVAL_YEARLY", UsageStatsManager.INTERVAL_YEARLY);
         constants.put("INTERVAL_DAILY", UsageStatsManager.INTERVAL_DAILY);
         constants.put("INTERVAL_BEST", UsageStatsManager.INTERVAL_BEST);
+
+
+        constants.put("TYPE_WIFI", ConnectivityManager.TYPE_WIFI);
+        constants.put("TYPE_MOBILE", ConnectivityManager.TYPE_MOBILE);
+        constants.put("TYPE_MOBILE_AND_WIFI", Integer.MAX_VALUE);
         return constants;
     }
 
@@ -100,5 +106,75 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
             result.putMap(us.getPackageName(), usageStats);
         }
         promise.resolve(result);
+    }
+
+
+    private NetworkStatsManager networkStatsManager;
+
+    @ReactMethod
+    public void showUsageAccessSettings(String packageName) {
+        Intent intent = new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS);
+        intent.setData(Uri.fromParts("package", packageName, null));
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        reactContext.startActivity(intent);
+    }
+
+    @ReactMethod
+    public void checkForPermission(Promise promise) {
+        AppOpsManager appOps = (AppOpsManager) reactContext.getSystemService(Context.APP_OPS_SERVICE);
+        int mode = appOps.checkOpNoThrow(OPSTR_GET_USAGE_STATS, Process.myUid(), reactContext.getPackageName());
+        promise.resolve(mode == MODE_ALLOWED);
+    }
+
+    private double getDataUsage(int networkType, String subscriberId, int packageUid, long startTime, long endTime) {
+        NetworkStats networkStatsByApp;
+        double currentDataUsage = 0;
+        try {
+            networkStatsByApp = networkStatsManager.querySummary(networkType, subscriberId, startTime, endTime);
+            do {
+                NetworkStats.Bucket bucket = new NetworkStats.Bucket();
+                networkStatsByApp.getNextBucket(bucket);
+                if (bucket.getUid() == packageUid) {
+                    currentDataUsage += (bucket.getRxBytes() + bucket.getTxBytes());
+                }
+            } while (networkStatsByApp.hasNextBucket());
+
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+        return currentDataUsage;
+    }
+
+    @ReactMethod
+    public void getAppDataUsage(String packageName, int networkType, double startTime, double endTime, Promise promise) {
+        // get sim card
+        String subId = getSubscriberId(reactContext, ConnectivityManager.TYPE_MOBILE);
+
+        int uid = getAppUid(packageName);
+        if (networkType == ConnectivityManager.TYPE_MOBILE) {
+            promise.resolve(getDataUsage(ConnectivityManager.TYPE_MOBILE,  null, uid, (long) startTime, (long) endTime));
+        } else if (networkType == ConnectivityManager.TYPE_WIFI) {
+            promise.resolve(getDataUsage(ConnectivityManager.TYPE_WIFI, "", uid, (long) startTime, (long) endTime));
+        } else {
+            promise.resolve(getDataUsage(ConnectivityManager.TYPE_MOBILE,  "", uid, (long) startTime, (long) endTime)
+                    + getDataUsage(ConnectivityManager.TYPE_WIFI, "", uid, (long) startTime, (long) endTime)
+            );
+        }
+    }
+
+    private int getAppUid (String packageName) {
+        // get app uid
+        PackageManager packageManager = reactContext.getPackageManager();
+        ApplicationInfo info = null;
+        try {
+            info = packageManager.getApplicationInfo(packageName, 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+        int uid = 0;
+        if (info != null) {
+            uid = info.uid;
+        }
+        return uid;
     }
 }
