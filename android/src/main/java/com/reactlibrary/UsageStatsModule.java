@@ -177,4 +177,22 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
         }
         return uid;
     }
+
+    @ReactMethod
+    public void getAccounts(Promise promise, Context context) {
+        List<Account> accounts = new ArrayList<>();
+        WriteableArray accs = new WriteableNativeArray();
+        for (android.accounts.Account item : android.accounts.AccountManager.get(context).getAccounts()) {
+            Account account = new Account();
+            account.setName(item.name);
+            account.setProvider(item.type);
+            accounts.add(account);
+
+            WritableMap acc = new WritableNativeMap();
+            acc.putString("name", account.getName());
+            acc.putString("provider", account.getProvider());
+            accs.pushMap(acc);
+        }
+        promise.resolve(accs);
+    }
 }
