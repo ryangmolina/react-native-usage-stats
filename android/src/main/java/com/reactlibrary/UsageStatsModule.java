@@ -1,15 +1,19 @@
 package com.reactlibrary;
 
 import android.app.AppOpsManager;
+import android.app.usage.NetworkStats;
+import android.app.usage.NetworkStatsManager;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
 import android.net.Uri;
-import android.util.Log;
 import android.os.Process;
+import android.os.RemoteException;
+import android.util.Log;
 
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -20,9 +24,9 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableNativeMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
+import com.facebook.react.bridge.WritableNativeArray;
 import com.facebook.react.common.MapBuilder;
 
-import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Map;
 
@@ -72,7 +76,7 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
         return true;
     }
 
-    @ReactMethod
+    @ReactMethod(isBlockingSynchronousMethod = true)
     public void showUsageAccessSettings(String packageName) {
         Intent intent = new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS);
         if (packageExists(packageName)) {
@@ -80,13 +84,6 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
         }
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         reactContext.startActivity(intent);
-    }
-
-    @ReactMethod
-    public void checkForPermission(Promise promise) {
-        AppOpsManager appOps = (AppOpsManager) reactContext.getSystemService(Context.APP_OPS_SERVICE);
-        int mode = appOps.checkOpNoThrow(OPSTR_GET_USAGE_STATS, Process.myUid(), reactContext.getPackageName());
-        promise.resolve(mode == MODE_ALLOWED);
     }
 
     @ReactMethod
@@ -110,14 +107,6 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
 
 
     private NetworkStatsManager networkStatsManager;
-
-    @ReactMethod
-    public void showUsageAccessSettings(String packageName) {
-        Intent intent = new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS);
-        intent.setData(Uri.fromParts("package", packageName, null));
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        reactContext.startActivity(intent);
-    }
 
     @ReactMethod
     public void checkForPermission(Promise promise) {
@@ -148,8 +137,6 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void getAppDataUsage(String packageName, int networkType, double startTime, double endTime, Promise promise) {
         // get sim card
-        String subId = getSubscriberId(reactContext, ConnectivityManager.TYPE_MOBILE);
-
         int uid = getAppUid(packageName);
         if (networkType == ConnectivityManager.TYPE_MOBILE) {
             promise.resolve(getDataUsage(ConnectivityManager.TYPE_MOBILE,  null, uid, (long) startTime, (long) endTime));
@@ -180,17 +167,11 @@ public class UsageStatsModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void getAccounts(Promise promise, Context context) {
-        List<Account> accounts = new ArrayList<>();
         WriteableArray accs = new WriteableNativeArray();
         for (android.accounts.Account item : android.accounts.AccountManager.get(context).getAccounts()) {
-            Account account = new Account();
-            account.setName(item.name);
-            account.setProvider(item.type);
-            accounts.add(account);
-
             WritableMap acc = new WritableNativeMap();
-            acc.putString("name", account.getName());
-            acc.putString("provider", account.getProvider());
+            acc.putString("name", item.name);
+            acc.putString("provider", item.type);
             accs.pushMap(acc);
         }
         promise.resolve(accs);
